@@ -1,12 +1,12 @@
 Metadata-Version: 1.1
 Name: BYOST
-Version: 0.0.1
+Version: 0.0.3
 Summary: BYOST (Build Your Own Spectral Template)
 Home-page: UNKNOWN
 Author: Jing Lu
 Author-email: lujingeve158@gmail.com
 License: UNKNOWN
-Description: Using Pricipal Component Analysis and Gaussian Process Regression		   to construct spectral template given 2 conditions.		   see https://arxiv.org/abs/2211.05998 for details.
+Description: Using Pricipal Component Analysis and Gaussian Process Regression                     to construct spectral template given 2 conditions.                     see https://arxiv.org/abs/2211.05998 for details.
 Platform: UNKNOWN
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Science/Research

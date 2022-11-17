@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
@@ -14,9 +16,9 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import WhiteKernel,RBF,ConstantKernel
 
 import os
-file_base = os.getcwd()
+base_path = os.path.dirname(__file__)
 
-from . import merge_spec
+from .merge_spec import merge_spec
 
 
 
@@ -34,7 +36,7 @@ def get_Hsiao_template(epoch):
         raise ValueError('OH NO, epoch out of range of the Hsiao template (-19,85)!')
     
     ## read in the Hsiao templates
-    f = pyfits.open(os.path.join(file_base, 'Hsiao_SED_V3_Ia.fits'))
+    f = pyfits.open('/'.join([base_path,'files/Hsiao_SED_V3_Ia.fits']))
     h_sed = f[0].data
     head = f[0].header
     h_wav = head['CRVAL1'] + (np.arange(head['NAXIS1'],dtype=np.float32) - head['CRPIX1'] + 1)*head['CDELT1']

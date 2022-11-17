@@ -2,6 +2,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
 import math
+from pylab import *
 from astropy.io import fits as pyfits
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -368,7 +369,7 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     ## plot template variation with condition1 at certain fixed condtion2 
     for j in tqdm(range(len(condition2_sample)),desc='sampling condition1'):
         cond2 = condition2_sample[j]
-        offset = 1.5*(len(condition2_sample)-j)+0.5
+        offset = 1.5*(len(condition2_sample)-j)
         ## plot the template
         for i,cond1 in enumerate(condition1_bins):
             wave,flux = get_template(df_buildingblock,cond1,cond2,return_template_error=False)
@@ -388,7 +389,7 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     ## plot template variation with condition2 at certain fixed condtion1
     for j in tqdm(range(len(condition1_sample)),desc='sampling condition2'):
         cond1 = condition1_sample[j]
-        offset = 1.5*(len(condition1_sample)-j)+0.5
+        offset = 1.5*(len(condition1_sample)-j)
         ## plot the template
         for i,cond2 in enumerate(condition2_bins):
             wave,flux = get_template(df_buildingblock,cond1,cond2,return_template_error=False)
@@ -411,6 +412,10 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
         ax.yaxis.set_ticks_position('both')
         ax.tick_params(labelsize=20,labeltop=True,labelbottom=True)
         ax.set_xlabel('Wavelength',fontsize=26)
+        if ax==ax1:
+            ax.set_ylim(0,1.5*len(condition1_sample)+1)
+        if ax == ax2:
+            ax.set_ylim(0,1.5*len(condition2_sample)+1)
         if log_x==True:
             ax.set_xscale('log')
             ax.xaxis.set_major_formatter(ScalarFormatter())

@@ -310,8 +310,10 @@ def plot_GPR_score(df_buildingblock):
 
 
 ### plot the template it self
-def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,condition1_sample=None,condition2_sample=None,\
-                 log_x=True, log_y=True):
+def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,\
+                  condition1_sample=None,condition2_sample=None,\
+                  condition1_colormap = 'rainbow',condition2_colormap = 'viridis',
+                  log_x=True, log_y=True):
     """
     Input:
         df_buildingblock: pandas dataframe contains resulting PCA and GPR
@@ -319,6 +321,8 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
         matching_wave_position: default will match the flux at the median wavelength postion
         condition1_sample: default will sample the mean-std, mean, mean+std of the condition1 values while varying condition2
         condition2_sample: default will sample the mean-std, mean, mean+std of the condition2 values while varying condition1
+        condition1_colormap: the color secheme for varying condition1, default rainbow
+        condition2_colormap: the color secheme for varying condition1, default viridis
         log_x: default True, wavelength is plotted in log scale
         log_y: default True, flux is plotted in log scale
         
@@ -329,7 +333,6 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     """
     ## read in the condition values and set up corresponding colors
     condition1,condition2 = df_conditions.T.values[0],df_conditions.T.values[1]
-    condition1_colormap,condition2_colormap = 'rainbow','viridis'
     condition1_bins = np.linspace(np.min(condition1),np.max(condition1),50)
     condition2_bins = np.linspace(np.min(condition2),np.max(condition2),50)
     cl_condition1 = sns.color_palette(condition1_colormap,len(condition1_bins))    

@@ -1,4 +1,4 @@
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
 import math
@@ -13,16 +13,20 @@ from sklearn.gaussian_process.kernels import WhiteKernel,RBF,ConstantKernel
 
 
 
-def make_buildingblocks(df_spectra,df_conditions,
+def make_buildingblocks(df_spectra,df_conditions,df_wavelength_bins = None,
                        normalize_method=None,wave_range=None, standardize_std = False,\
-                       n_components=20,\
+                       n_components=10,\
                        length_scales=[10.0,0.1],remove_outliars = True,\
-                       n_restarts_optimizer=20,return_score=True):
+                       n_restarts_optimizer=20):
     """
     Input:
         ** Input dataset and conditions wished to be modeld upon **
         df_spectra: pandas dataframe of the spectra on the common wavelenght grid, with wave as column names
         df_conditions: pandas dataframe of the conditions corresponding to df_spectra, e.g., epochs and sBVs
+        
+        ** wavelength bin if intended**
+        df_wavelength_bins : pandas dataframe with 2 columns: 'wave_start' and 'wave_end', wavelength bins must has
+                             some overlap with the previous one. 
         
         ** arugements that could be used to prepare the data **
         normalize_method: default = None; or "mean_flux" or "intergrated_flux"
@@ -41,26 +45,46 @@ def make_buildingblocks(df_spectra,df_conditions,
                        larger scale will return smoother precition, smaller scale will have more details)** 
         remove_outliars: default = True, ignore the local PC ourliars that are beyond 5sigma*global_std
         n_restarts_optimizer: number of restart of the optimizer
-        return_score: default False, if True, return the GPR R^2 score on the predictions of y given x1 and x2
         
     Output:
         df_buildingblocks: pandas dataframe contains resulting PCA and GPR 
     """
-    ## normalize the dataset if needed:
-    if (normalize_method is not None) or (wave_range is not None):
-        df_spectra = normalize_flux(df_spectra,normalize_method=normalize_method,wave_range=wave_range)
+    ## define a empty df to store results later
+    df_buildingblocks = pd.DataFrame()
+    
+    if df_wavelength_bins is None:
+        df_wavelength_bins = pd.DataFrame({'wave_start':[df_spectra.columns.values[0]],\
+                                           'wave_end':[df_spectra.columns.values[-1]]})
+    ## make sure df_wavelength_bins index is in the proper order
+    df_wavelength_bins = df_wavelength_bins.reset_index(drop=True)
+    
+    
+    for i in tqdm(range(df_wavelength_bins.shape[0]), desc="Wavelength regions"):
+        ## select the data within the wavelength bin
+        W_bin = df_wavelength_bins.values[i]
+        col_index = np.where((df_spectra.columns.values>=W_bin[0])&(df_spectra.columns.values<=W_bin[1]))[0]
+        df_spectra_Wbin = df_spectra[df_spectra.columns[col_index]].copy()
         
-    ## Do PCA
-    pca, PCA_projections = DO_PCA(df_spectra,n_components=n_components,standardize_std = standardize_std)
-    
-    ## Do GPR
-    condition_1,condition_2 = df_conditions.T.values[0],df_conditions.T.values[1] # first and second column values
-    GPR_output = DO_GPR(PCA_projections,condition_1,condition_2,length_scales=[10.0,0.1],remove_outliars = True,\
-                        n_restarts_optimizer=20,return_score=True)
-    
-    ## store the results to a pandas dataframe, if would like to save the df, could save as a pickle file
-    ## using df.to_pickle('filename.pkl'), which worked for me since it can keep the complex data structures
-    df_buildingblocks = pd.DataFrame({'pca':[pca],'PCA_projections':[PCA_projections],'GPR_output':[GPR_output]})
+        ## normalize the dataset if needed:
+        if (normalize_method is not None) or (wave_range is not None):
+            df_spectra_Wbin = normalize_flux(df_spectra_Wbin,normalize_method=normalize_method,wave_range=wave_range)
+
+        ## Do PCA
+        pca, PCA_projections, scaler = DO_PCA(df_spectra_Wbin,n_components=n_components,standardize_std = standardize_std)
+
+        ## Do GPR
+        condition_1,condition_2 = df_conditions.T.values[0],df_conditions.T.values[1] # first and second column values
+        GPR_output = DO_GPR(PCA_projections,condition_1,condition_2,length_scales=length_scales,\
+                            remove_outliars = remove_outliars,\
+                            n_restarts_optimizer=n_restarts_optimizer)
+
+        ## store the results to a pandas dataframe, if would like to save the df, could save as a pickle file
+        ## using df.to_pickle('filename.pkl'), which worked for me since it can keep the complex data structures
+        df_buildingblock = pd.DataFrame({'wavelength':[df_spectra_Wbin.columns.values],'scaler':scaler,\
+                                         'pca':[pca],'PCA_projections':[PCA_projections],'GPR_output':[GPR_output],\
+                                         'condition1_range':[[min(df_conditions.T.values[0]),max(df_conditions.T.values[0])]],\
+                                         'condition2_range':[[min(df_conditions.T.values[1]),max(df_conditions.T.values[1])]]})
+        df_buildingblocks = pd.concat([df_buildingblocks,df_buildingblock],axis=0,ignore_index=True)
     
     return df_buildingblocks
 
@@ -107,7 +131,7 @@ def normalize_flux(df_spectra,normalize_method='mean_flux',wave_range=None):
 
 
 ## Perform PCA on the input data
-def DO_PCA(PCA_input,n_components=20,standardize_std = False):
+def DO_PCA(PCA_input,n_components=10,standardize_std = False):
     """
     Input:
         PCA_input: pandas dataframe/2-D arrays of the normalized flux 
@@ -120,7 +144,8 @@ def DO_PCA(PCA_input,n_components=20,standardize_std = False):
     """
     #### standardize data if needed
     ## pca in sklearn take out the mean anyway so no need to standardize by mean in each column
-    PCA_input_normed = StandardScaler(with_mean=False, with_std=standardize_std).fit_transform(PCA_input)
+    scaler = StandardScaler(with_mean=False, with_std=standardize_std)
+    PCA_input_normed = scaler.fit_transform(PCA_input)
     ## perform PCA
     pca = PCA(n_components=n_components)  
     PCA_output = pca.fit_transform(PCA_input_normed)
@@ -128,7 +153,7 @@ def DO_PCA(PCA_input,n_components=20,standardize_std = False):
     PC_names = ['PC'+str(i+1) for i in range(pca.n_components_)]
     PCA_projections = pd.DataFrame(PCA_output,columns=PC_names)
     
-    return pca,PCA_projections
+    return pca,PCA_projections,scaler
 
 
 ## Function of Gaussian process regresssion with a 2D input
@@ -170,7 +195,7 @@ def GPR_2D_input(x1,x2,y,yerr=None,length_scales=[10.0,0.1],n_restarts_optimizer
 
 
 def DO_GPR(PCA_projections,condition_1,condition_2,length_scales=[10.0,0.1],remove_outliars = True,\
-           n_restarts_optimizer=20,return_score=True):
+           n_restarts_optimizer=20):
     """
     Input:
         PCA_output: pandas dataframe of the PCA projections
@@ -182,7 +207,6 @@ def DO_GPR(PCA_projections,condition_1,condition_2,length_scales=[10.0,0.1],remo
                        larger scale will return smoother precition, smaller scale will have more details)** 
         remove_outliars: default = True, ignore the local PC ourliars that are beyond 5sigma*global_std
         n_restarts_optimizer: number of restart of the optimizer
-        return_score: default False, if True, return the GPR R^2 score on the predictions of y given x1 and x2
     Output:
         GPR_output: a pandas dataframe of the fitted gps (and gp scores if True) for each PC column 
                     given the conditions as inut
@@ -190,7 +214,9 @@ def DO_GPR(PCA_projections,condition_1,condition_2,length_scales=[10.0,0.1],remo
     ## define a empty df to store the results later
     GPR_output = pd.DataFrame()
     ## fitting GPR on every PC
-    for col in PCA_projections.columns.values:
+    columns = PCA_projections.columns.values
+    for i in tqdm(range(len(columns)), desc="Gaussian Process"):
+        col = columns[i]
         y = PCA_projections[col].values
         x1,x2 = np.array(condition_1),np.array(condition_2)
         if remove_outliars==True:
@@ -198,15 +224,17 @@ def DO_GPR(PCA_projections,condition_1,condition_2,length_scales=[10.0,0.1],remo
             smooth_y = gaussian_filter1d(y,sigma=5)
             y_diff = np.abs(y-smooth_y)
             w = np.where((y_diff<=5*np.std(y-smooth_y)))
-            x1,x2,y = x1[w],x2[w],y[w]  
+            x1,x2,y = x1[w],x2[w],y[w] 
+        ## Normalize the y to be in between 0 and 1  (it helps the gp_score to stay reseasonable)
+        y_norm = (y-np.min(y))/(np.max(y)-np.min(y))
         ## GPR fit   
-        gp_output = GPR_2D_input(x1,x2,y,length_scales=length_scales,n_restarts_optimizer=n_restarts_optimizer,\
-                          return_score=return_score)
-        if return_score == True:
-            GPR_output.loc['gp',col] = gp_output[0]
-            GPR_output.loc['gp_score',col] = gp_output[1]
-        else:
-            GPR_output.loc['gp',col] = gp_output
+        gp_output = GPR_2D_input(x1,x2,y_norm,length_scales=length_scales,n_restarts_optimizer=n_restarts_optimizer,\
+                          return_score=True)
+        ## store the results
+        GPR_output.loc['gp',col] = gp_output[0]
+        GPR_output.loc['gp_score',col] = gp_output[1]
+        GPR_output.loc['yrange',col] = np.max(y)-np.min(y)
+        GPR_output.loc['ymin',col] = np.min(y)
     
     return GPR_output
 

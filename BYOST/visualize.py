@@ -121,12 +121,12 @@ def plot_PCA(df_buildingblock,df_conditions,n_components=None,PC_vector_sigma=1)
             variance = PC_vector_sigma * pca_proj[PC].std()
             PC_proj_random = np.linspace(-variance,+variance,100)
             cl_ptn = sns.color_palette('rainbow',len(PC_proj_random))
-            norm_factor = np.max([scaler.inverse_transform(mean_vector+variance*PC_eigen_vec),\
-                                  scaler.inverse_transform(mean_vector-variance*PC_eigen_vec)])
-            ax.plot(wave,scaler.inverse_transform(mean_vector)/norm_factor,color='k',ls='--',alpha=0.8,\
+            norm_factor = np.max([scaler.inverse_transform([mean_vector+variance*PC_eigen_vec])[0],\
+                                  scaler.inverse_transform([mean_vector-variance*PC_eigen_vec])[0]])
+            ax.plot(wave,scaler.inverse_transform([mean_vector])[0]/norm_factor,color='k',ls='--',alpha=0.8,\
                     zorder=2,lw=2,label='mean vector')
             for k,coff in enumerate(PC_proj_random):
-                total_vector = scaler.inverse_transform(mean_vector + coff*PC_eigen_vec)/norm_factor
+                total_vector = scaler.inverse_transform([mean_vector + coff*PC_eigen_vec])[0]/norm_factor
                 ax.plot(wave,total_vector,color=cl_ptn[k],alpha=0.7,zorder=1,lw=1)    
             ## label the PC explained variance percentage    
             if j==0:

@@ -79,7 +79,8 @@ def plot_PCA(df_buildingblock,df_conditions,n_components=None,PC_vector_sigma=1)
     Input:
         df_buildingblock: pandas dataframe contains resulting PCA and GPR
         df_conditions: pandas dataframe of the conditions corresponding to df_spectra, e.g., epochs and sBVs
-        PC_vector_sigma: default 2, the PC projection sigma when plotting the variance represented by the PC vectors
+        n_components: number of PCs to plot, default all of PCs
+        PC_vector_sigma: default 1, the PC projection sigma when plotting the variance represented by the PC vectors
     
     Output:
         Fig of PCA results (first row is PC vectors and its variation, \
@@ -310,15 +311,21 @@ def plot_GPR_score(df_buildingblock):
 
 
 ### plot the template it self
-def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,condition1_sample=None,condition2_sample=None,\
-                 log_x=True, log_y=True):
+def plot_template(df_buildingblock,df_conditions,
+                  matching_wave_position=None,y_offset_gap = 1.0,
+                  condition1_sample=None,condition2_sample=None,\
+                  condition1_colormap = 'rainbow',condition2_colormap = 'viridis',
+                  log_x=True, log_y=True):
     """
     Input:
         df_buildingblock: pandas dataframe contains resulting PCA and GPR
         df_conditions: pandas dataframe of the conditions corresponding to df_spectra, e.g., epochs and sBVs
         matching_wave_position: default will match the flux at the median wavelength postion
+        y_offset_gap: the offset in yaxis between the sampling template
         condition1_sample: default will sample the mean-std, mean, mean+std of the condition1 values while varying condition2
         condition2_sample: default will sample the mean-std, mean, mean+std of the condition2 values while varying condition1
+        condition1_colormap: the color secheme for varying condition1, default rainbow
+        condition2_colormap: the color secheme for varying condition1, default viridis
         log_x: default True, wavelength is plotted in log scale
         log_y: default True, flux is plotted in log scale
         
@@ -329,7 +336,6 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     """
     ## read in the condition values and set up corresponding colors
     condition1,condition2 = df_conditions.T.values[0],df_conditions.T.values[1]
-    condition1_colormap,condition2_colormap = 'rainbow','viridis'
     condition1_bins = np.linspace(np.min(condition1),np.max(condition1),50)
     condition2_bins = np.linspace(np.min(condition2),np.max(condition2),50)
     cl_condition1 = sns.color_palette(condition1_colormap,len(condition1_bins))    
@@ -369,7 +375,7 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     ## plot template variation with condition1 at certain fixed condtion2 
     for j in tqdm(range(len(condition2_sample)),desc='sampling condition1'):
         cond2 = condition2_sample[j]
-        offset = 1.5*(len(condition2_sample)-j)
+        offset = y_offset_gap*(len(condition2_sample)-j)
         ## plot the template
         for i,cond1 in enumerate(condition1_bins):
             wave,flux = get_template(df_buildingblock,cond1,cond2,return_template_error=False)
@@ -389,7 +395,7 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
     ## plot template variation with condition2 at certain fixed condtion1
     for j in tqdm(range(len(condition1_sample)),desc='sampling condition2'):
         cond1 = condition1_sample[j]
-        offset = 1.5*(len(condition1_sample)-j)
+        offset = y_offset_gap*(len(condition1_sample)-j)
         ## plot the template
         for i,cond2 in enumerate(condition2_bins):
             wave,flux = get_template(df_buildingblock,cond1,cond2,return_template_error=False)
@@ -413,9 +419,9 @@ def plot_template(df_buildingblock,df_conditions,matching_wave_position=None,con
         ax.tick_params(labelsize=20,labeltop=True,labelbottom=True)
         ax.set_xlabel('Wavelength',fontsize=26)
         if ax==ax1:
-            ax.set_ylim(0,1.5*len(condition1_sample)+1)
+            ax.set_ylim(0,y_offset_gap*len(condition1_sample)+0.6*y_offset_gap)
         if ax == ax2:
-            ax.set_ylim(0,1.5*len(condition2_sample)+1)
+            ax.set_ylim(0,y_offset_gap*len(condition2_sample)+0.6*y_offset_gap)
         if log_x==True:
             ax.set_xscale('log')
             ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -462,7 +468,7 @@ def comp_template_with_sample(df_buildingblock,df_sample_with_conditions,\
     ## check if the columns needed are in the given sample dataframe
     required_columns = ['wave','flux','cond1','cond2']
     if np.sum([col in df_sample_with_conditions.columns for col in required_columns])<len(required_columns):
-        raise ValueError('Please make sure the given comparison sample contains these columns: ["wave","flux","cond1","cond2"].')
+        raise ValueError('Please make sure the given comparison sample contains these columns: ["wave","flux","cond1","cond2"], and wavelength is in unit of A.')
         
     if co_comp_Hsiao_temp==True:
         print('Please make sure cond1 is epoch, cond2 is sBV if comparing with Hsiao template!')
@@ -504,7 +510,8 @@ def comp_template_with_sample(df_buildingblock,df_sample_with_conditions,\
         ax.plot(wv_temp,plot_flux_temp,alpha=0.7,lw=1.8,color='tab:purple',zorder=3)
         ax.fill_between(wv_temp,plot_flux_temp_low_bond,plot_flux_temp_up_bond,alpha=0.3,\
                         color='tab:purple',zorder=1,label=temp_legend_label)
-        ax.text(wv_temp[-1]+(np.max(wv_temp)-np.min(wv_temp))/10,plot_flux_temp[-1],f'{row[label_cols[0]]},{row[label_cols[1]]}',fontsize=15,ha='left',va='center')
+        ax.text(wv_temp[-1]+(np.max(wv_temp)-np.min(wv_temp))/10,plot_flux_temp[-1],\
+                ','.join(df_sample_with_conditions.loc[i,label_cols].astype(str)),fontsize=15,ha='left',va='center')
         
         ## compare with hsiao template if needed
         if co_comp_Hsiao_temp==True:
@@ -525,7 +532,7 @@ def comp_template_with_sample(df_buildingblock,df_sample_with_conditions,\
     
     ## other plot settings 
     ymin, ymax = 0, ymax_shift+ plot_gap*df_sample_with_conditions.shape[0]+2.8
-    ax.set_xlim(wv_range[0],wv_range[1]+0.55*(np.max(wv_temp)-np.min(wv_temp)))
+    ax.set_xlim(wv_range[0],wv_range[1]+0.2*len(label_cols)*(np.max(wv_temp)-np.min(wv_temp)))
     ax.set_ylim(ymin,ymax)
     ax.grid(alpha=0.3)
     ax.xaxis.set_ticks_position('both')
@@ -538,8 +545,8 @@ def comp_template_with_sample(df_buildingblock,df_sample_with_conditions,\
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.xaxis.set_minor_formatter(NullFormatter())
         # try to find the optimal major tick step
-        desired_step = float('%s' % float('%.1g'%((wv_temp[-1]-wv_temp[0])/5)))
-        major_steps = np.array([0.05,0.1,0.2,0.4,0.5,1,10,50,100,200,400,500,1000,1500,2000,3000,4000,5000])
+        desired_step = float('%s' % float('%.1g'%((wv_range[1]-wv_range[0])/5)))
+        major_steps = np.array([0.05,0.1,0.2,0.4,0.5,1,10,50,100,200,300,400,500,1000,1500,2000,3000,4000,5000])
         xaxis_major = major_steps[np.argmin(np.abs(major_steps-desired_step))]
         ax.xaxis.set_major_locator(ticker.MultipleLocator(xaxis_major))
         ax.xaxis.set_minor_locator(ticker.MultipleLocator(xaxis_major/5))

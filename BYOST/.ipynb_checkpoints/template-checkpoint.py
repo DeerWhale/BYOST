@@ -56,7 +56,7 @@ def get_template(df_buildingblocks,condition1,condition2,
     Input:
         df_buildingblocks: pandas dataframe contains resulting PCA and GPR 
             ** if there is more than 1 wavelength region (df.shape[0]>1), the wavelength must be aranged from 
-            blue to red in the dataframe, and has overlap in neribouring region in order to enable merging **
+            blue to red in the dataframe, and has overlap in neighbouring region in order to enable merging **
         condition1: input variable 1, scaler 
         condition2:  input variable 2, scaler 
         

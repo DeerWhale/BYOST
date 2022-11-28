@@ -13,8 +13,8 @@ from sklearn.gaussian_process.kernels import WhiteKernel,RBF,ConstantKernel
 
 
 
-def make_buildingblocks(df_spectra,df_conditions,df_wavelength_bins = None,
-                       normalize_method=None,wave_range=None, standardize_std = False,\
+def make_buildingblock(df_spectra,df_conditions,\
+                       normalize_method='intergrated_flux',normalize_wave_range=None, standardize_std = False,\
                        n_components=10,\
                        length_scales=[10.0,0.1],remove_outliars = True,\
                        n_restarts_optimizer=20):
@@ -24,21 +24,18 @@ def make_buildingblocks(df_spectra,df_conditions,df_wavelength_bins = None,
         df_spectra: pandas dataframe of the spectra on the common wavelenght grid, with wave as column names
         df_conditions: pandas dataframe of the conditions corresponding to df_spectra, e.g., epochs and sBVs
         
-        ** wavelength bin if intended**
-        df_wavelength_bins : pandas dataframe with 2 columns: 'wave_start' and 'wave_end', wavelength bins must has
-                             some overlap with the previous one. 
-        
-        ** arugements that could be used to prepare the data **
-        normalize_method: default = None; or "mean_flux" or "intergrated_flux"
+        ** arguements that could be used to prepare the data **
+        normalize_method: default = 'intergrated_flux'; or None, "mean_flux" or "intergrated_flux"
+            None: - None: take the input data as it is
             "mean_flux": normalize by dividing the mean flux in the selected range 
             "intergrated_flux": normalize by dividing the intergrated flux in the selected range
-        wave_range: default = None; or 2-element list ([lambda_left,lambda_right])
+        normalize_wave_range: default = None; or 2-element list ([lambda_left,lambda_right])
         standardize_std: default = False, if=True, standardize the input data by standardeviation of each column
         
-        ** arugement during the PCA step **
+        ** arguement during the PCA step **
         n_components: default = 20, the number of the components you would like to keep for furhure analysis
         
-        ** arugement during the GPR step**
+        ** arguement during the GPR step**
         length_scales: default [10, 0.1], the length scale of the RBF kernal for condition_1 and condition_2
                        **The GPR depends on these initial scale values, try out the optiminal length scale 
                        for your data set!! (this is a little bit similar to the smoothness of the GP preditons, 
@@ -49,71 +46,56 @@ def make_buildingblocks(df_spectra,df_conditions,df_wavelength_bins = None,
     Output:
         df_buildingblocks: pandas dataframe contains resulting PCA and GPR 
     """
-    ## define a empty df to store results later
-    df_buildingblocks = pd.DataFrame()
-    
-    if df_wavelength_bins is None:
-        df_wavelength_bins = pd.DataFrame({'wave_start':[df_spectra.columns.values[0]],\
-                                           'wave_end':[df_spectra.columns.values[-1]]})
-    ## make sure df_wavelength_bins index is in the proper order
-    df_wavelength_bins = df_wavelength_bins.reset_index(drop=True)
-    
-    
-    for i in tqdm(range(df_wavelength_bins.shape[0]), desc="Wavelength regions"):
-        ## select the data within the wavelength bin
-        W_bin = df_wavelength_bins.values[i]
-        col_index = np.where((df_spectra.columns.values>=W_bin[0])&(df_spectra.columns.values<=W_bin[1]))[0]
-        df_spectra_Wbin = df_spectra[df_spectra.columns[col_index]].copy()
-        
-        ## normalize the dataset if needed:
-        if (normalize_method is not None) or (wave_range is not None):
-            df_spectra_Wbin = normalize_flux(df_spectra_Wbin,normalize_method=normalize_method,wave_range=wave_range)
 
-        ## Do PCA
-        pca, PCA_projections, scaler = DO_PCA(df_spectra_Wbin,n_components=n_components,standardize_std = standardize_std)
+    ## normalize the dataset if needed:
+    if (normalize_method is not None):
+        df_spectra = normalize_flux(df_spectra,normalize_method=normalize_method,normalize_wave_range=normalize_wave_range)
 
-        ## Do GPR
-        condition_1,condition_2 = df_conditions.T.values[0],df_conditions.T.values[1] # first and second column values
-        GPR_output = DO_GPR(PCA_projections,condition_1,condition_2,length_scales=length_scales,\
-                            remove_outliars = remove_outliars,\
-                            n_restarts_optimizer=n_restarts_optimizer)
+    ## Do PCA
+    pca, PCA_projections, scaler = DO_PCA(df_spectra,n_components=n_components,standardize_std = standardize_std)
 
-        ## store the results to a pandas dataframe, if would like to save the df, could save as a pickle file
-        ## using df.to_pickle('filename.pkl'), which worked for me since it can keep the complex data structures
-        df_buildingblock = pd.DataFrame({'wavelength':[df_spectra_Wbin.columns.values],'scaler':scaler,\
-                                         'pca':[pca],'PCA_projections':[PCA_projections],'GPR_output':[GPR_output],\
-                                         'condition1_range':[[min(df_conditions.T.values[0]),max(df_conditions.T.values[0])]],\
-                                         'condition2_range':[[min(df_conditions.T.values[1]),max(df_conditions.T.values[1])]]})
-        df_buildingblocks = pd.concat([df_buildingblocks,df_buildingblock],axis=0,ignore_index=True)
+    ## Do GPR
+    condition_1,condition_2 = df_conditions.T.values[0],df_conditions.T.values[1] # first and second column values
+    GPR_output = DO_GPR(PCA_projections,condition_1,condition_2,length_scales=length_scales,\
+                        remove_outliars = remove_outliars,\
+                        n_restarts_optimizer=n_restarts_optimizer)
+
+    ## store the results to a pandas dataframe, if would like to save the df, could save as a pickle file
+    ## using df.to_pickle('filename.pkl'), which worked for me since it can keep the complex data structures
+    df_buildingblock = pd.DataFrame({'wavelength':[df_spectra.columns.values],'scaler':[scaler],\
+                                     'pca':[pca],'PCA_projections':[PCA_projections],'GPR_output':[GPR_output],\
+                                     'condition1_range':[[min(df_conditions.T.values[0]),max(df_conditions.T.values[0])]],\
+                                     'condition2_range':[[min(df_conditions.T.values[1]),max(df_conditions.T.values[1])]]},\
+                                     index=[0])
     
-    return df_buildingblocks
+    return df_buildingblock
 
 
 ## ------------------------------------------------------------------------------------##
 
 
 ## Normalize input spectrum to its mean or intergrated flux in certain wavelength range
-def normalize_flux(df_spectra,normalize_method='mean_flux',wave_range=None):
+def normalize_flux(df_spectra,normalize_method='mean_flux',normalize_wave_range=None):
     """
     Input:
         df_spectra: pandas dataframe of the spectra on the common wavelenght grid, with wave as column names
         normalize_method: "mean_flux" or "intergrated_flux"
             "mean_flux": normalize by dividing the mean flux in the selected range 
             "intergrated_flux": normalize by dividing the intergrated flux in the selected range
-        wave_range: None or 2-element list ([lambda_left,lambda_right])
+        normalize_wave_range: None or 2-element list ([lambda_left,lambda_right])
     Output:
         df_spectra: same format as input df_spectra but now each spectrum are normalized 
     """
     wave = df_spectra.columns.values
     for i,row in df_spectra.iterrows():
         ## select wave range
-        if wave_range is None:
+        if normalize_wave_range is None:
             lambda_left,lambda_right = wave[0],wave[-1]
         else:
-            if len(wave_range) == 2:
-                lambda_left,lambda_right = wave_range[0].wave_range[1]
+            if len(normalize_wave_range) == 2:
+                lambda_left,lambda_right = normalize_wave_range[0],normalize_wave_range[1]
             else:
-                raise ValueError('wave_range should be 2-element [lambda_left,lambda_right] if not None')
+                raise ValueError('normalize_wave_range should be 2-element [lambda_left,lambda_right] if not None')
         w = np.where((wave>=lambda_left)&(wave<=lambda_right))
         flux = row.values
         ## compute normalization factor
@@ -124,9 +106,9 @@ def normalize_flux(df_spectra,normalize_method='mean_flux',wave_range=None):
         else:
             norm_factor = 1
         ## normalize each spectrum
-        df_spectra.loc[i,:] = row/norm_factor
+        df_spectra.loc[i,:] = df_spectra.loc[i,:]/norm_factor
         
-        return df_spectra
+    return df_spectra
         
 
 

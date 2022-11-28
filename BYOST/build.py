@@ -13,8 +13,8 @@ from sklearn.gaussian_process.kernels import WhiteKernel,RBF,ConstantKernel
 
 
 
-def make_buildingblocks(df_spectra,df_conditions
-                       normalize_method=None,wave_range=None, standardize_std = False,\
+def make_buildingblock(df_spectra,df_conditions,\
+                       normalize_method='intergrated_flux',normalize_wave_range=None, standardize_std = False,\
                        n_components=10,\
                        length_scales=[10.0,0.1],remove_outliars = True,\
                        n_restarts_optimizer=20):
@@ -25,10 +25,11 @@ def make_buildingblocks(df_spectra,df_conditions
         df_conditions: pandas dataframe of the conditions corresponding to df_spectra, e.g., epochs and sBVs
         
         ** arguements that could be used to prepare the data **
-        normalize_method: default = None; or "mean_flux" or "intergrated_flux"
+        normalize_method: default = 'intergrated_flux'; or None, "mean_flux" or "intergrated_flux"
+            None: - None: take the input data as it is
             "mean_flux": normalize by dividing the mean flux in the selected range 
             "intergrated_flux": normalize by dividing the intergrated flux in the selected range
-        wave_range: default = None; or 2-element list ([lambda_left,lambda_right])
+        normalize_wave_range: default = None; or 2-element list ([lambda_left,lambda_right])
         standardize_std: default = False, if=True, standardize the input data by standardeviation of each column
         
         ** arguement during the PCA step **
@@ -46,9 +47,9 @@ def make_buildingblocks(df_spectra,df_conditions
         df_buildingblocks: pandas dataframe contains resulting PCA and GPR 
     """
 
-    ## normalize the dataset/select wave_range if needed:
-    if (normalize_method is not None) or (wave_range is not None):
-        df_spectra = normalize_flux(df_spectra_Wbin,normalize_method=normalize_method,wave_range=wave_range)
+    ## normalize the dataset if needed:
+    if (normalize_method is not None):
+        df_spectra = normalize_flux(df_spectra,normalize_method=normalize_method,normalize_wave_range=normalize_wave_range)
 
     ## Do PCA
     pca, PCA_projections, scaler = DO_PCA(df_spectra,n_components=n_components,standardize_std = standardize_std)
@@ -61,10 +62,11 @@ def make_buildingblocks(df_spectra,df_conditions
 
     ## store the results to a pandas dataframe, if would like to save the df, could save as a pickle file
     ## using df.to_pickle('filename.pkl'), which worked for me since it can keep the complex data structures
-    df_buildingblock = pd.DataFrame({'wavelength':[df_spectra.columns.values],'scaler':scaler,\
+    df_buildingblock = pd.DataFrame({'wavelength':[df_spectra.columns.values],'scaler':[scaler],\
                                      'pca':[pca],'PCA_projections':[PCA_projections],'GPR_output':[GPR_output],\
                                      'condition1_range':[[min(df_conditions.T.values[0]),max(df_conditions.T.values[0])]],\
-                                     'condition2_range':[[min(df_conditions.T.values[1]),max(df_conditions.T.values[1])]]})
+                                     'condition2_range':[[min(df_conditions.T.values[1]),max(df_conditions.T.values[1])]]},\
+                                     index=[0])
     
     return df_buildingblock
 
@@ -73,27 +75,27 @@ def make_buildingblocks(df_spectra,df_conditions
 
 
 ## Normalize input spectrum to its mean or intergrated flux in certain wavelength range
-def normalize_flux(df_spectra,normalize_method='mean_flux',wave_range=None):
+def normalize_flux(df_spectra,normalize_method='mean_flux',normalize_wave_range=None):
     """
     Input:
         df_spectra: pandas dataframe of the spectra on the common wavelenght grid, with wave as column names
         normalize_method: "mean_flux" or "intergrated_flux"
             "mean_flux": normalize by dividing the mean flux in the selected range 
             "intergrated_flux": normalize by dividing the intergrated flux in the selected range
-        wave_range: None or 2-element list ([lambda_left,lambda_right])
+        normalize_wave_range: None or 2-element list ([lambda_left,lambda_right])
     Output:
         df_spectra: same format as input df_spectra but now each spectrum are normalized 
     """
     wave = df_spectra.columns.values
     for i,row in df_spectra.iterrows():
         ## select wave range
-        if wave_range is None:
+        if normalize_wave_range is None:
             lambda_left,lambda_right = wave[0],wave[-1]
         else:
-            if len(wave_range) == 2:
-                lambda_left,lambda_right = wave_range[0].wave_range[1]
+            if len(normalize_wave_range) == 2:
+                lambda_left,lambda_right = normalize_wave_range[0],normalize_wave_range[1]
             else:
-                raise ValueError('wave_range should be 2-element [lambda_left,lambda_right] if not None')
+                raise ValueError('normalize_wave_range should be 2-element [lambda_left,lambda_right] if not None')
         w = np.where((wave>=lambda_left)&(wave<=lambda_right))
         flux = row.values
         ## compute normalization factor
@@ -104,9 +106,9 @@ def normalize_flux(df_spectra,normalize_method='mean_flux',wave_range=None):
         else:
             norm_factor = 1
         ## normalize each spectrum
-        df_spectra.loc[i,:] = row/norm_factor
+        df_spectra.loc[i,:] = df_spectra.loc[i,:]/norm_factor
         
-        return df_spectra
+    return df_spectra
         
 
 

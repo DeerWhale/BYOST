@@ -4,4 +4,5 @@ matplotlib
 astropy
 pandas
 scikit-learn
+seaborn
 tqdm

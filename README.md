@@ -15,8 +15,7 @@ pip install BYOST
 ```
 
 ## Quick guide
+A quick guide is provided in the notebook [BYOST_quick_guide.ipynb](https://github.com/DeerWhale/BYOST/blob/main/BYOST_quick_guide.ipynb).
 
-## Still workong on this part, come back check out soon :)
-
-
+## Cites
 If you used this package for your research work, please kindly cite [our paper](https://arxiv.org/abs/2211.05998), much appriciated! :)
